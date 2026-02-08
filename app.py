@@ -15,7 +15,12 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=GROQ_API_KEY)
 
 # ------------------ Configure Tesseract ------------------
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+if os.name == 'nt' and os.path.exists(TESSERACT_PATH):
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+else:
+    # On Linux/Docker, tesseract is usually in the PATH
+    pass
 
 # ------------------ Supported Languages ------------------
 LANGUAGE_EXTENSIONS = {
@@ -33,20 +38,28 @@ LANGUAGE_EXTENSIONS = {
 def build_command(lang, filepath):
     """Return execution command for given language & filepath."""
     base, ext = os.path.splitext(filepath)
+    is_windows = os.name == "nt"
 
     if lang == "python":
         return ["python", filepath]
 
     elif lang == "java":
-        classname = os.path.basename(base)  # Use temp filename as class
-        return ["bash", "-c", f"javac {filepath} && java {classname}"]
+        dirname = os.path.dirname(filepath)
+        classname = os.path.basename(base)
+        if is_windows:
+            return f'javac "{filepath}" && java -cp "{dirname}" {classname}'
+        return ["bash", "-c", f"javac {filepath} && java -cp {dirname} {classname}"]
 
     elif lang == "cpp":
-        exe = base + ".exe" if os.name == "nt" else base + ".out"
+        exe = base + ".exe" if is_windows else base + ".out"
+        if is_windows:
+            return f'g++ "{filepath}" -o "{exe}" && "{exe}"'
         return ["bash", "-c", f"g++ {filepath} -o {exe} && {exe}"]
 
     elif lang == "c":
-        exe = base + ".exe" if os.name == "nt" else base + ".out"
+        exe = base + ".exe" if is_windows else base + ".out"
+        if is_windows:
+            return f'gcc "{filepath}" -o "{exe}" && "{exe}"'
         return ["bash", "-c", f"gcc {filepath} -o {exe} && {exe}"]
 
     elif lang == "javascript":
@@ -63,6 +76,8 @@ def build_command(lang, filepath):
 
     elif lang == "kotlin":
         jarfile = base + ".jar"
+        if is_windows:
+            return f'kotlinc "{filepath}" -include-runtime -d "{jarfile}" && java -jar "{jarfile}"'
         return ["bash", "-c", f"kotlinc {filepath} -include-runtime -d {jarfile} && java -jar {jarfile}"]
 
     return None
@@ -150,50 +165,69 @@ def home():
 def chat():
     user_message, extracted_text = "", ""
 
-    if request.content_type.startswith("multipart/form-data"):
-        image_file = request.files.get("image")
-        text_input = request.form.get("query", "").strip()
-        user_message = text_input
-        if image_file:
-            extracted_text = ocr_function(image_file)
-            user_message += "\n" + extracted_text
-    elif request.is_json:
-        user_message = request.json.get("message", "").strip()
-    else:
-        return jsonify({"response": "⚠ Unsupported request type"}), 415
+    try:
+        if request.content_type.startswith("multipart/form-data"):
+            image_file = request.files.get("image")
+            text_input = request.form.get("query", "").strip()
+            user_message = text_input
+            if image_file:
+                extracted_text = ocr_function(image_file)
+                if extracted_text:
+                    user_message += "\n" + extracted_text
+        elif request.is_json:
+            user_message = request.json.get("message", "").strip()
+        else:
+            return jsonify({"error": "Unsupported request type"}), 415
 
-    if not user_message:
-        return jsonify({"response": "⚠ No input received"}), 400
+        if not user_message:
+            return jsonify({"error": "No input received"}), 400
 
-    # Prompt for Groq
-    prompt = f"""
+        # Prompt for Groq
+        prompt = f"""
 Write a complete solution for the following problem:
 
 {user_message}
 
 Requirements:
-1. Provide working code in the appropriate language.
-2. Include explanation of the approach.
-3. Mention Time Complexity and Space Complexity.
-4. Use Markdown code fences with correct language (python, java, cpp, c, javascript, go, r, ruby, kotlin).
+1. Provide working code in one of the following supported languages if applicable: Python, Java, C++, C, JavaScript, Go, R, Ruby, Kotlin.
+2. If the problem requires a specific language not listed, provide the code but note that it cannot be executed in this environment.
+3. Include a clear and concise explanation of the approach.
+4. Mention Time Complexity and Space Complexity.
+5. Use Markdown code fences with correct language identifier (e.g., ```python ... ```).
 """
 
-    # Ask Groq
-    groq_response = ask_groq(prompt)
-    if groq_response.startswith("Error querying Groq API"):
-        return jsonify({"response": f"<div class='bg-red-100 text-red-800 p-4 rounded'><pre>{groq_response}</pre></div>"})
+        # Ask Groq
+        groq_response = ask_groq(prompt)
+        if groq_response.startswith("Error querying Groq API"):
+            return jsonify({"error": groq_response}), 500
 
-    # Extract code & language
-    lang, code_to_exec = extract_code_and_language(groq_response)
-    execution_output = execute_code(lang, code_to_exec)
+        # Extract code & language
+        # Improved regex to find markdown code blocks accurately
+        code_block_match = re.search(r"```(\w+)\n([\s\S]*?)```", groq_response)
+        if code_block_match:
+            lang = code_block_match.group(1).lower()
+            code_to_exec = code_block_match.group(2).strip()
+        else:
+            lang, code_to_exec = "python", ""
 
-    # Prepare response
-    return jsonify({
-        "response": f"<h2>📄 Extracted Text from Image:</h2><pre>{extracted_text}</pre>"
-                    f"<h2>💡 Suggested {lang.title()} Solution with Explanation:</h2><pre>{groq_response}</pre>"
-                    f"<div class='bg-green-100 text-green-900 p-4 rounded'><strong>✅ Output:</strong><br><pre>{execution_output}</pre></div>"
-    })
+        execution_output = ""
+        if code_to_exec:
+            execution_output = execute_code(lang, code_to_exec)
+
+        # Prepare response
+        return jsonify({
+            "extracted_text": extracted_text,
+            "solution": groq_response,
+            "language": lang,
+            "code": code_to_exec,
+            "output": execution_output,
+            "status": "success"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e), "status": "error"}), 500
 
 # ------------------ Run Flask ------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 7860))
+    app.run(host="0.0.0.0", port=port, debug=True)

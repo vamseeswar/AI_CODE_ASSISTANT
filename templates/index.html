@@ -1,112 +1,390 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Groq Code Assistant</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Decoder | Intelligent Assistant</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
-<body class="bg-gradient-to-r from-indigo-100 via-purple-100 to-pink-100 min-h-screen text-gray-800 font-sans">
-  <div class="max-w-4xl mx-auto mt-12 p-8 bg-white rounded-3xl shadow-2xl border border-gray-200">
-    <h1 class="text-4xl font-extrabold text-center text-indigo-700 mb-8">🚀 Groq Code Assistant</h1>
 
-    <!-- Input Section -->
-    <div class="space-y-6">
-      <!-- Image upload -->
-      <div class="border-dashed border-4 border-indigo-300 rounded-xl p-6 text-center hover:bg-indigo-50 transition cursor-pointer" id="dropZone">
-        <p class="text-gray-600">📷 Drag & Drop your image here or click to select</p>
-        <input type="file" id="image" accept="image/*" class="hidden">
+<body>
+
+  <body>
+    <div class="wrapper">
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <h2>Decoder</h2>
+          <button id="closeBtn" class="icon-btn">&times;</button>
+        </div>
+        <ul class="nav-links">
+          <li><a href="#" id="nav-home" class="active">Home</a></li>
+          <li><a href="#" id="nav-history">History</a></li>
+          <li><a href="#" id="nav-settings">Settings</a></li>
+          <li><a href="#" id="nav-about">About</a></li>
+        </ul>
+        <div class="theme-switch-wrapper">
+          <button id="themeBtn" class="theme-btn">
+            <span>🎨 Change Theme</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Text input -->
-      <div>
-        <label class="block text-lg font-semibold text-gray-700 mb-1">📝 Or Paste Your Coding Problem</label>
-        <textarea id="query" rows="4" class="w-full p-4 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-400 focus:outline-none" placeholder="Write a Python function to..."></textarea>
+      <div class="main-content" id="mainContent">
+        <header>
+          <button id="menuBtn" class="icon-btn menu-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <h1>Decoder</h1>
+          <div class="header-spacer"></div> <!-- Spacer to balance the header -->
+          <p>Intelligent OCR-Powered Coding Assistant powered by Groq</p>
+        </header>
+
+        <div id="home-section" class="page-section active-section">
+          <div class="input-grid">
+            <div class="drop-zone" id="dropZone">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <div id="fileInfo">
+                <p><strong>Upload Image</strong></p>
+                <p style="font-size: 0.8rem;">Drag & drop or click to select</p>
+              </div>
+              <input type="file" id="imageInput" accept="image/*" style="display: none;">
+            </div>
+
+            <div class="text-area-container">
+              <textarea id="queryInput"
+                placeholder="Paste your coding problem or additional instructions here..."></textarea>
+            </div>
+          </div>
+
+          <button id="submitBtn" class="submit-btn text-white">
+            🚀 Solve Problem
+          </button>
+
+          <div id="loader" class="loader">
+            <div class="spinner"></div>
+            <p>Brewing solution...</p>
+          </div>
+
+          <div id="results" class="results">
+            <div id="extractedTextSection" class="card" style="display: none;">
+              <h3 class="card-title">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Extracted OCR Text
+              </h3>
+              <div id="extractedText" class="terminal" style="color: #60a5fa;"></div>
+            </div>
+
+            <div class="card">
+              <h3 class="card-title">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Solution & Analysis
+              </h3>
+              <div id="solutionContent" class="markdown-content"></div>
+            </div>
+
+            <div class="card">
+              <h3 class="card-title">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Execution Output (<span id="outLang"></span>)
+              </h3>
+              <div id="executionOutput" class="terminal"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- History Section -->
+        <div id="history-section" class="page-section" style="display: none;">
+          <div class="card">
+            <h2 class="card-title">📜 Request History</h2>
+            <div id="historyList">
+              <p style="color: var(--text-muted); text-align: center;">No history yet. Start solving problems!</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div id="settings-section" class="page-section" style="display: none;">
+          <div class="card">
+            <h2 class="card-title">⚙️ Settings</h2>
+            <div class="settings-group">
+              <label>Clear Local History</label>
+              <button id="clearHistoryBtn" class="submit-btn"
+                style="background: var(--accent); width: auto; margin-top: 0.5rem;">Clear All History</button>
+            </div>
+            <div class="settings-group" style="margin-top: 2rem;">
+              <p style="color: var(--text-muted);">Version: 1.0.0 (Hugging Face Edition)</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- About Section -->
+        <div id="about-section" class="page-section" style="display: none;">
+          <div class="card">
+            <h2 class="card-title">🤖 About Decoder</h2>
+            <div class="markdown-content">
+              <p><strong>Decoder</strong> is an advanced AI coding assistant designed to bridge the gap between static
+                code (images) and executable solutions.</p>
+              <h3>Features:</h3>
+              <ul>
+                <li><strong>OCR Capabilities:</strong> Extract code from screenshots or photos.</li>
+                <li><strong>AI Logic:</strong> Powered by Groq (Llama 3) for high-performance reasoning.</li>
+                <li><strong>Multi-Language Support:</strong> Python, Java, C++, JavaScript, and more.</li>
+                <li><strong>Dockerized:</strong> Fully containerized for easy deployment on Hugging Face Spaces.</li>
+              </ul>
+              <p style="margin-top: 1rem;">Built with ❤️ by <strong>Vamseeswar</strong>.</p>
+            </div>
+          </div>
+        </div>
+
       </div>
+    </div> <!-- End of wrapper -->
 
-      <!-- Submit button -->
-      <button id="submitBtn" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl text-lg font-semibold shadow-md hover:from-indigo-600 hover:to-purple-700 transition-all duration-300">
-        🔍 Generate & Execute
-      </button>
-    </div>
+    <script>
+      const dropZone = document.getElementById('dropZone');
+      const imageInput = document.getElementById('imageInput');
+      const fileInfo = document.getElementById('fileInfo');
+      const submitBtn = document.getElementById('submitBtn');
+      const loader = document.getElementById('loader');
+      const results = document.getElementById('results');
 
-    <!-- Response Section -->
-    <div id="responseContainer" class="mt-10 space-y-6"></div>
-  </div>
+      // UI Interactions
+      dropZone.addEventListener('click', () => imageInput.click());
 
-  <script>
-    const dropZone = document.getElementById("dropZone");
-    const imageInput = document.getElementById("image");
-    const responseContainer = document.getElementById("responseContainer");
-
-    // Click to open file picker
-    dropZone.addEventListener("click", () => imageInput.click());
-
-    // Drag & drop
-    dropZone.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      dropZone.classList.add("bg-indigo-50");
-    });
-    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("bg-indigo-50"));
-    dropZone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      dropZone.classList.remove("bg-indigo-50");
-      if (e.dataTransfer.files.length > 0) {
-        imageInput.files = e.dataTransfer.files;
-      }
-    });
-
-    // Submit handler
-    document.getElementById("submitBtn").addEventListener("click", async (e) => {
-      e.preventDefault();
-      const query = document.getElementById("query").value.trim();
-      responseContainer.innerHTML = "<p class='text-gray-500'>Processing...</p>";
-
-      try {
-        let res;
+      imageInput.addEventListener('change', () => {
         if (imageInput.files.length > 0) {
-          const formData = new FormData();
-          formData.append("image", imageInput.files[0]);
-          if (query) formData.append("query", query);
-          res = await fetch("/chat", { method: "POST", body: formData });
-        } else {
-          res = await fetch("/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: query }),
-          });
+          fileInfo.innerHTML = `<p><strong>${imageInput.files[0].name}</strong></p><p style="color: #10b981;">File selected successfully</p>`;
+        }
+      });
+
+      // Drag & Drop
+      ['dragenter', 'dragover'].forEach(name => {
+        dropZone.addEventListener(name, (e) => {
+          e.preventDefault();
+          dropZone.classList.add('drag-over');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(name => {
+        dropZone.addEventListener(name, (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('drag-over');
+        });
+      });
+
+      dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        imageInput.files = files;
+        if (files.length > 0) {
+          fileInfo.innerHTML = `<p><strong>${files[0].name}</strong></p><p style="color: #10b981;">File uploaded</p>`;
+        }
+      });
+
+      // Submission
+      submitBtn.addEventListener('click', async () => {
+        const query = document.getElementById('queryInput').value.trim();
+        if (!query && imageInput.files.length === 0) {
+          alert('Please provide a query or an image.');
+          return;
         }
 
-        if (!res.ok) throw new Error("Server error: " + res.status);
-        const data = await res.json();
+        loader.style.display = 'block';
+        results.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.7';
 
-        // Extract sections
-        const extractedText = data.response.match(/<h2>📄 Extracted Text.*?<\/h2><pre>([\s\S]*?)<\/pre>/)?.[1] || 'No extracted text';
-        const suggestedCode = data.response.match(/<h2>💡 Suggested Python Solution.*?<\/h2><pre>([\s\S]*?)<\/pre>/)?.[1] || 'No solution';
+        try {
+          const formData = new FormData();
+          if (imageInput.files.length > 0) formData.append('image', imageInput.files[0]);
+          formData.append('query', query);
 
-        // Display results (without Output section)
-        responseContainer.innerHTML = `
-          <div class="space-y-4">
-            <details class="bg-gray-50 border border-gray-300 rounded-lg p-4">
-              <summary class="font-semibold text-indigo-700 cursor-pointer text-lg">📄 Extracted Text from Image</summary>
-              <pre class="max-h-60 overflow-y-auto mt-2 text-sm whitespace-pre-wrap">${extractedText}</pre>
-            </details>
+          const response = await fetch('/chat', {
+            method: 'POST',
+            body: formData
+          });
 
-            <details class="bg-gray-50 border border-gray-300 rounded-lg p-4">
-              <summary class="font-semibold text-indigo-700 cursor-pointer text-lg">💡 Suggested Python Solution & Explanation</summary>
-              <pre class="max-h-80 overflow-y-auto mt-2 text-sm font-mono whitespace-pre-wrap">${suggestedCode}</pre>
-            </details>
-          </div>
-        `;
+          const data = await response.json();
 
-        // Clear inputs
-        imageInput.value = "";
-        document.getElementById("query").value = "";
-      } catch (err) {
-        responseContainer.innerHTML = `<p class="text-red-600">⚠️ Error: ${err.message}</p>`;
-        imageInput.value = "";
+          if (data.status === 'success') {
+            // Render results
+            results.style.display = 'block';
+
+            if (data.extracted_text) {
+              document.getElementById('extractedTextSection').style.display = 'block';
+              document.getElementById('extractedText').textContent = data.extracted_text;
+            } else {
+              document.getElementById('extractedTextSection').style.display = 'none';
+            }
+
+            document.getElementById('solutionContent').innerHTML = marked.parse(data.solution);
+            document.getElementById('outLang').textContent = data.language.toUpperCase();
+            document.getElementById('executionOutput').textContent = data.output || 'No output produced.';
+
+            // Save to history
+            if (data.solution) {
+              addToHistory(query, data.solution, data.language);
+            }
+
+            // Smooth scroll to results
+            results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } else {
+            alert('Error: ' + (data.error || 'Something went wrong'));
+          }
+        } catch (err) {
+          console.error(err);
+          alert('Fetch error: ' + err.message);
+        } finally {
+          loader.style.display = 'none';
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+        }
+      });
+
+      // Navigation & Theme Logic
+      const sidebar = document.getElementById('sidebar');
+      const menuBtn = document.getElementById('menuBtn');
+      const closeBtn = document.getElementById('closeBtn');
+      const themeBtn = document.getElementById('themeBtn');
+      const body = document.body;
+
+      // SPA Navigation Logic
+      const navLinks = {
+        'nav-home': document.getElementById('home-section'),
+        'nav-history': document.getElementById('history-section'),
+        'nav-settings': document.getElementById('settings-section'),
+        'nav-about': document.getElementById('about-section')
+      };
+
+      function navigateTo(navId) {
+        // Hide all sections
+        Object.values(navLinks).forEach(section => section.style.display = 'none');
+        // Show target section
+        navLinks[navId].style.display = 'block';
+        // precise active class update
+        document.querySelectorAll('.nav-links a').forEach(link => link.classList.remove('active'));
+        document.getElementById(navId).classList.add('active');
+
+        // Close sidebar on mobile/small screens
+        sidebar.classList.remove('open');
       }
-    });
-  </script>
-</body>
+
+      Object.keys(navLinks).forEach(navId => {
+        document.getElementById(navId).addEventListener('click', (e) => {
+          e.preventDefault();
+          navigateTo(navId);
+          if (navId === 'nav-history') {
+            renderHistory(); // Ensure history is rendered when navigating to it
+          }
+        });
+      });
+
+      // History Logic
+      let appHistory = [];
+      const historyListEl = document.getElementById('historyList');
+      const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+      function addToHistory(query, solution, lang) {
+        const timestamp = new Date().toLocaleTimeString();
+        const item = { query, solution, lang, timestamp };
+        appHistory.unshift(item); // Add to beginning
+        renderHistory();
+      }
+
+      function renderHistory() {
+        if (appHistory.length === 0) {
+          historyListEl.innerHTML = '<p style="color: var(--text-muted); text-align: center;">No history yet. Start solving problems!</p>';
+          return;
+        }
+
+        historyListEl.innerHTML = appHistory.map((item, index) => `
+        <div class="card history-item" style="padding: 1rem; cursor: pointer;" onclick="viewHistoryItem(${index})">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span class="status-badge status-success">${item.lang.toUpperCase()}</span>
+            <span style="color: var(--text-muted); font-size: 0.8rem;">${item.timestamp}</span>
+          </div>
+          <p style="color: var(--text-main); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            ${item.query || 'Image Upload Request'}
+          </p>
+        </div>
+      `).join('');
+      }
+
+      // Settings Logic
+      clearHistoryBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to clear your local history?')) {
+          appHistory = [];
+          renderHistory();
+          navigateTo('nav-history'); // Refresh view
+        }
+      });
+
+      // Global function to view a history item (simple implementation: load into Home)
+      window.viewHistoryItem = (index) => {
+        const item = appHistory[index];
+        // Navigate to Home
+        navigateTo('nav-home');
+        // Restore state
+        document.getElementById('queryInput').value = item.query;
+
+        // We manually trigger the "success" view state
+        results.style.display = 'block';
+        document.getElementById('extractedTextSection').style.display = 'none'; // simplified
+        document.getElementById('solutionContent').innerHTML = marked.parse(item.solution);
+        document.getElementById('outLang').textContent = item.lang.toUpperCase();
+        document.getElementById('executionOutput').innerText = "// Re-loaded from history\n(Re-run to see fresh output)";
+
+        results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+
+      // Toggle Sidebar
+      menuBtn.addEventListener('click', () => {
+        sidebar.classList.add('open');
+      });
+
+      closeBtn.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+      });
+
+      // Close sidebar when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!sidebar.contains(e.target) && !menuBtn.contains(e.target) && sidebar.classList.contains('open')) {
+          sidebar.classList.remove('open');
+        }
+      });
+
+      // Theme Switcher
+      const themes = [
+        'theme-default',
+        'theme-ocean',
+        'theme-sunset',
+        'theme-neon'
+      ];
+      let currentThemeIndex = 0;
+
+      themeBtn.addEventListener('click', () => {
+        body.classList.remove(themes[currentThemeIndex]);
+        currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+        body.classList.add(themes[currentThemeIndex]);
+      });
+    </script>
+  </body>
+
 </html>
