@@ -12,7 +12,16 @@ from dotenv import load_dotenv
 load_dotenv()
 app = Flask(__name__)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-client = Groq(api_key=GROQ_API_KEY)
+client = None
+
+# Initialize Groq client only if API KEY is present
+if GROQ_API_KEY:
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+    except Exception as e:
+        print(f"Failed to initialize Groq client: {e}")
+else:
+    print("Warning: GROQ_API_KEY not found. Chat features will error out.")
 
 # ------------------ Configure Tesseract ------------------
 # REMOVED: Tesseract is now handled on the client-side via Tesseract.js for Vercel compatibility.
@@ -81,6 +90,9 @@ def build_command(lang, filepath):
 # ------------------ Helper functions ------------------
 def ask_groq(prompt, system_message="You are an expert developer and teacher."):
     """Ask Groq API for code solution with explanation and complexities."""
+    if not client:
+        return "Configuration Error: GROQ_API_KEY is missing in server environment variables. Please add it to Vercel Settings."
+        
     try:
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
