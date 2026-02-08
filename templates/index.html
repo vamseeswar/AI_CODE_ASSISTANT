@@ -7,6 +7,7 @@
   <title>Decoder | Intelligent Assistant</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
 </head>
 
 <body>
@@ -201,7 +202,9 @@
       // Submission
       submitBtn.addEventListener('click', async () => {
         const query = document.getElementById('queryInput').value.trim();
-        if (!query && imageInput.files.length === 0) {
+        const files = imageInput.files;
+
+        if (!query && files.length === 0) {
           alert('Please provide a query or an image.');
           return;
         }
@@ -211,14 +214,39 @@
         submitBtn.disabled = true;
         submitBtn.style.opacity = '0.7';
 
-        try {
-          const formData = new FormData();
-          if (imageInput.files.length > 0) formData.append('image', imageInput.files[0]);
-          formData.append('query', query);
+        let combinedMessage = query;
+        let extractedText = "";
 
+        try {
+          // 1. Perform Client-Side OCR if image exists
+          if (files.length > 0) {
+            const statusParams = document.querySelector('#loader p');
+            statusParams.innerText = "Extracting text from image (Client-Side)...";
+
+            try {
+              const worker = await Tesseract.createWorker("eng");
+              const ret = await worker.recognize(files[0]);
+              extractedText = ret.data.text.trim();
+              await worker.terminate();
+
+              if (extractedText) {
+                combinedMessage += "\n\n[Extracted Code Context]:\n" + extractedText;
+              }
+            } catch (ocrErr) {
+              console.error("OCR Failed:", ocrErr);
+              alert("Client-side OCR failed. Proceeding with text only.");
+            }
+            statusParams.innerText = "Brewing solution...";
+          }
+
+          // 2. Send to Backend as JSON
           const response = await fetch('/chat', {
             method: 'POST',
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: combinedMessage,
+              extracted_text: extractedText // Send separately for UI display
+            })
           });
 
           const data = await response.json();
@@ -250,9 +278,10 @@
           }
         } catch (err) {
           console.error(err);
-          alert('Fetch error: ' + err.message);
+          alert('Error: ' + err.message);
         } finally {
           loader.style.display = 'none';
+          document.querySelector('#loader p').innerText = "Brewing solution...";
           submitBtn.disabled = false;
           submitBtn.style.opacity = '1';
         }

@@ -1,6 +1,5 @@
 Flask
 groq
 python-dotenv
-pillow
-pytesseract
 gunicorn
+# Removed: pillow, pytesseract (Now client-side)

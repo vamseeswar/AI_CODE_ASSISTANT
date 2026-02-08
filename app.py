@@ -5,8 +5,8 @@ import subprocess
 from flask import Flask, render_template, request, jsonify
 from groq import Groq
 from dotenv import load_dotenv
-from PIL import Image
-import pytesseract
+# from PIL import Image # Not needed anymore server-side
+# import pytesseract # Not needed anymore server-side
 
 # ------------------ Load environment variables ------------------
 load_dotenv()
@@ -15,12 +15,8 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=GROQ_API_KEY)
 
 # ------------------ Configure Tesseract ------------------
-TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-if os.name == 'nt' and os.path.exists(TESSERACT_PATH):
-    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
-else:
-    # On Linux/Docker, tesseract is usually in the PATH
-    pass
+# REMOVED: Tesseract is now handled on the client-side via Tesseract.js for Vercel compatibility.
+# The server only processes text and code.
 
 # ------------------ Supported Languages ------------------
 LANGUAGE_EXTENSIONS = {
@@ -97,14 +93,7 @@ def ask_groq(prompt, system_message="You are an expert developer and teacher."):
     except Exception as e:
         return f"Error querying Groq API: {str(e)}"
 
-def ocr_function(file_storage):
-    """Extract text from uploaded image using Tesseract OCR."""
-    try:
-        image = Image.open(file_storage)
-        text = pytesseract.image_to_string(image, config="--psm 6")
-        return text.strip()
-    except Exception as e:
-        return f"⚠ OCR Error: {str(e)}"
+# REMOVED: ocr_function (Client-side OCR used instead)
 
 def extract_code_and_language(text: str):
     """Extract all code blocks and language from Groq's response."""
@@ -140,6 +129,13 @@ def execute_code(lang: str, code: str):
         if not cmd:
             return "⚠ Unsupported language."
 
+        # Vercel Serverless Constraint
+        # Vercel functions are read-only and don't have compilers installed.
+        # Simple Python scripts might run, but other languages will fail.
+        if os.environ.get("VERCEL"):
+             if lang != "python":
+                 return f"⚠ Execution of {lang} is not supported on Vercel Serverless environment. Please use Hugging Face Spaces for full feature set."
+             
         result = subprocess.run(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, shell=(os.name == "nt"), timeout=20
@@ -166,18 +162,16 @@ def chat():
     user_message, extracted_text = "", ""
 
     try:
-        if request.content_type.startswith("multipart/form-data"):
-            image_file = request.files.get("image")
-            text_input = request.form.get("query", "").strip()
-            user_message = text_input
-            if image_file:
-                extracted_text = ocr_function(image_file)
-                if extracted_text:
-                    user_message += "\n" + extracted_text
-        elif request.is_json:
-            user_message = request.json.get("message", "").strip()
+        extracted_text = ""
+        user_message = ""
+
+        if request.is_json:
+            data = request.json
+            user_message = data.get("message", "").strip()
+            # If the client sent extracted text separately for display purposes
+            extracted_text = data.get("extracted_text", "")
         else:
-            return jsonify({"error": "Unsupported request type"}), 415
+            return jsonify({"error": "Unsupported request type. Use JSON."}), 415
 
         if not user_message:
             return jsonify({"error": "No input received"}), 400
